@@ -1,0 +1,43 @@
+import requests
+import csv
+from datetime import datetime
+
+coin_id = "bitcoin-cash"
+output_directory = ""
+
+api_endpoint = "https://api.coingecko.com/api/v3/coins/{}/market_chart".format(coin_id)
+
+params = {
+    "vs_currency": "usd",  
+    "days": "max",
+    "interval": "daily"
+}
+
+response = requests.get(api_endpoint, params=params)
+
+# Check if the request was successful
+if response.status_code == 200:
+    data = response.json()
+    historical_data = data["prices"]
+    historical_market_caps = data["market_caps"]
+    historical_volumes = data["total_volumes"]
+    
+    # Define the output CSV file name
+    output_csv = f"{output_directory}/{coin_id}_시작일 검증용_data.csv"
+    
+    with open(output_csv, mode='w', newline='') as csv_file:
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(["Timestamp", "Price", "Market Cap", "Total Volume","Twitter Followers"])
+        
+        for price_entry, cap_entry, volume_entry in zip(historical_data, historical_market_caps, historical_volumes):
+            timestamp = price_entry[0] / 1000  # Convert milliseconds to seconds
+            date_tuple = datetime.utcfromtimestamp(timestamp).date().timetuple()[:3]
+            price = price_entry[1]
+            market_cap = cap_entry[1]
+            total_volume = volume_entry[1]
+
+            csv_writer.writerow([date_tuple, price,market_cap,total_volume])
+    
+    print("Historical data saved to", output_csv)
+else:
+    print("Error fetching data:", response.status_code)
