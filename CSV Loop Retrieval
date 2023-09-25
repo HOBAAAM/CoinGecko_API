@@ -1,0 +1,94 @@
+import requests
+import csv
+from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
+import time
+import ast 
+
+api_key = ""
+output_directory = ""
+
+max_threads = 5  # Adjust this based on your API rate limit (e.g., 500 calls per minute)
+
+batch_delay = 60 / 500  
+
+csv_file_path = "C:/Users/나경준 SCL/crypto_data.csv"
+
+def convert_tuple_to_datetime(date_tuple):
+    return datetime(*date_tuple)
+
+def fetch_data_for_coin(coin_id, listing_date, current_date):
+    listing_date = convert_tuple_to_datetime(listing_date)
+
+    coin_output_csv = f"{output_directory}/{coin_id}_comprehensive_data.csv"
+    
+    with open(coin_output_csv, mode='w', newline='') as csv_file:
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow([
+            "date", "price", "market cap", "total volume", "Twitter Followers",
+            "Reddit Followers", "Reddit Posts average 48h",
+            "Reddit Comments average 48h", "Reddit Active Accounts 48h"
+        ])
+        
+        date_iterator = listing_date
+        current_date = current_date
+        
+        while date_iterator <= current_date:
+            # Remove leading zeros from date components
+            day = str(date_iterator.day).lstrip("0")
+            month = str(date_iterator.month).lstrip("0")
+            year = str(date_iterator.year)
+            
+            specific_date = f"{day}-{month}-{year}"
+            
+            api_endpoint = f"https://pro-api.coingecko.com/api/v3/coins/{coin_id}/history?x_cg_pro_api_key={api_key}"
+
+            params = {
+                "vs_currency": "usd",
+                "date": specific_date,
+                "api_key": api_key
+            }
+
+            response = requests.get(api_endpoint, params=params)
+
+            if response.status_code == 200:
+                data = response.json()
+                monumental_data = data.get("market_data", {})
+                historical_price_usd = monumental_data.get("current_price", {}).get("usd")
+                historical_market_cap_usd = monumental_data.get("market_cap", {}).get("usd")
+                historical_volume_usd = monumental_data.get("total_volume", {}).get("usd")
+
+                community_data = data.get("community_data", {})
+                twitter_followers = community_data.get("twitter_followers", {})
+                reddit_followers = community_data.get("reddit_subscribers", {})
+                reddit_posts = community_data.get("reddit_average_posts_48h", {})
+                reddit_comments = community_data.get("reddit_average_comments_48h", {})
+                reddit_accounts_active = community_data.get("reddit_accounts_active_48h", {})
+
+                result = [
+                    specific_date, historical_price_usd, historical_market_cap_usd,
+                    historical_volume_usd, twitter_followers, reddit_followers,
+                    reddit_posts, reddit_comments, reddit_accounts_active
+                ]
+
+                csv_writer.writerow(result)
+            else:
+                print("Error fetching data for", specific_date, ":", response.status_code)
+
+            date_iterator += timedelta(days=1)
+            time.sleep(batch_delay)
+
+def main():
+    current_date = datetime.now()
+    
+    with open(csv_file_path, 'r', newline='') as coin_csv:
+        csv_reader = csv.DictReader(coin_csv)
+        
+        for row in csv_reader:
+            coin_id = row["id"]
+            listing_date = ast.literal_eval(row["atl_date"])  # Convert tuple format
+            fetch_data_for_coin(coin_id, listing_date, current_date)
+            print(f"All community data for {coin_id} saved.")
+
+if __name__ == "__main__":
+    main()
