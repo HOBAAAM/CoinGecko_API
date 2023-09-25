@@ -1,0 +1,88 @@
+import requests
+import csv
+from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
+import time
+
+coin_id = "wrapped-bitcoin"
+api_key = ""
+output_directory = ""
+listing_date = datetime(2019, 2, 1)
+current_date = datetime.now()
+
+output_csv = f"{output_directory}/{coin_id}_comprehensive_data.csv"
+
+def fetch_data_for_date(date):
+    specific_date = date.strftime("%d-%m-%Y")
+    api_endpoint = f"https://pro-api.coingecko.com/api/v3/coins/{coin_id}/history?x_cg_pro_api_key={api_key}"
+
+    params = {
+        "vs_currency": "usd",
+        "date": specific_date,
+        "api_key": api_key
+    }
+
+    response = requests.get(api_endpoint, params=params)
+
+    if response.status_code == 200:
+        data = response.json()
+        monumentary_data = data.get("market_data",{})
+        historcial_price_usd = monumentary_data.get("current_price",{}).get("usd")
+        historcial_market_cap_usd = monumentary_data.get("market_cap",{}).get("usd")
+        historical_volume_usd = monumentary_data.get("total_volume",{}).get("usd")
+
+        community_data = data.get("community_data",{})
+        twitter_followers = community_data.get("twitter_followers",{})
+        reddit_followers = community_data.get("reddit_subscribers",{})
+        reddit_posts = community_data.get("reddit_average_posts_48h",{})
+        reddit_comments = community_data.get("reddit_average_comments_48h",{})
+        reddit_accounts_active = community_data.get("reddit_accounts_active_48h",{})
+
+        return [
+            specific_date, historcial_price_usd, historcial_market_cap_usd,
+            historical_volume_usd, twitter_followers, reddit_followers,
+            reddit_posts, reddit_comments, reddit_accounts_active
+        ]
+    else:
+        print("Error fetching data for", specific_date, ":", response.status_code)
+        return None
+
+def chunks(lst, chunk_size):
+    for i in range(0, len(lst), chunk_size):
+        yield lst[i:i + chunk_size]
+
+output_csv = f"{output_directory}/{coin_id}_comprehensive_data.csv"
+
+with open(output_csv, mode='w', newline='') as csv_file:
+    csv_writer = csv.writer(csv_file)
+    csv_writer.writerow([
+        "date", "price", "market cap", "total volume", "Twitter Followers",
+        "Reddit Followers", "Reddit Posts average 48h",
+        "Reddit Comments average 48h", "Reddit Active Accounts 48h"
+    ])
+
+    date_iterator = listing_date
+    dates_to_fetch = []
+
+    while date_iterator <= current_date:
+        dates_to_fetch.append(date_iterator)
+        date_iterator += timedelta(days=1)
+
+    # Define the maximum number of threads for parallel processing
+    max_threads = 5  # Adjust this based on your API rate limit (e.g., 500 calls per minute)
+    
+    # Calculate the delay between each batch of API requests to stay within rate limit
+    batch_delay = 60 / 500  # 60 seconds / max_threads
+
+    with ThreadPoolExecutor(max_threads) as executor:
+        for date_batch in chunks(dates_to_fetch, max_threads):
+            results = list(executor.map(fetch_data_for_date, date_batch))
+            
+            for result in results:
+                if result is not None:
+                    csv_writer.writerow(result)
+            
+            # Sleep to respect the rate limit
+            time.sleep(batch_delay)
+
+print("All community data saved to", output_csv)
