@@ -3,16 +3,20 @@ import csv
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 import time
-import ast 
+import ast  # Import the ast module
 
-api_key = ""
-output_directory = ""
+api_key = "--"
+output_directory = "--"
 
-max_threads = 5  # Adjust this based on your API rate limit (e.g., 500 calls per minute)
 
-batch_delay = 60 / 500  
+api_calls_per_minute = 500
 
-csv_file_path = "C:/Users/나경준 SCL/crypto_data.csv"
+max_threads = api_calls_per_minute
+batch_delay = 60 / api_calls_per_minute
+
+
+
+csv_file_path = "--"
 
 def convert_tuple_to_datetime(date_tuple):
     return datetime(*date_tuple)
@@ -34,7 +38,6 @@ def fetch_data_for_coin(coin_id, listing_date, current_date):
         current_date = current_date
         
         while date_iterator <= current_date:
-            # Remove leading zeros from date components
             day = str(date_iterator.day).lstrip("0")
             month = str(date_iterator.month).lstrip("0")
             year = str(date_iterator.year)
@@ -92,3 +95,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
